@@ -297,16 +297,17 @@ errcode_t ocfs2_read_inode(ocfs2_filesys *fs, uint64_t blkno,
 		goto out;
 
 	di = (struct ocfs2_dinode *)blk;
-	ret = ocfs2_validate_meta_ecc(fs, blk, &di->i_check);
-	if (ret)
-		goto out;
-
 	ret = OCFS2_ET_BAD_INODE_MAGIC;
 	if (memcmp(di->i_signature, OCFS2_INODE_SIGNATURE,
 		   strlen(OCFS2_INODE_SIGNATURE)))
 		goto out;
 
 	memcpy(inode_buf, blk, fs->fs_blocksize);
+
+	ret = ocfs2_validate_meta_ecc(fs, blk, &di->i_check);
+	if (ret)
+		goto out;
+
 
 	di = (struct ocfs2_dinode *) inode_buf;
 	ocfs2_swap_inode_to_cpu(fs, di);
