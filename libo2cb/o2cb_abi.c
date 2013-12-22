@@ -35,6 +35,8 @@
 #include <errno.h>
 #include <limits.h>
 #include <ctype.h>
+#include <dlfcn.h>
+#include <corosync/cmap.h>
 
 #include <linux/types.h>
 
@@ -1966,52 +1968,57 @@ static errcode_t classic_list_clusters(char ***clusters)
 
 static errcode_t user_list_clusters(char ***clusters)
 {
-	errcode_t err = O2CB_ET_SERVICE_UNAVAILABLE;
-	int rc, fd = -1;
-	char buf[OCFS2_CONTROLD_MAXLINE];
+	errcode_t ret = O2CB_ET_SERVICE_UNAVAILABLE;
+	void *lib_handle = NULL;
+	char **list;
+	int rv;
 
-	rc = ocfs2_client_connect();
-	if (rc < 0) {
-		/* fprintf(stderr, "Unable to connect to ocfs2_controld: %s\n",
-			strerror(-rc)); */
-		switch (rc) {
-			case -EACCES:
-			case -EPERM:
-				err = O2CB_ET_PERMISSION_DENIED;
-				break;
+	cmap_handle_t handle;
+	static int (*initialize)(cmap_handle_t *handle);
+	static int (*get_string)(cmap_handle_t handle,
+			const char *string,
+			char **name);
+	static int (*finalize)(cmap_handle_t handle);
 
-			default:
-				err = O2CB_ET_SERVICE_UNAVAILABLE;
-				break;
-		}
+
+	lib_handle = dlopen("libcmap.so.4", RTLD_NOW | RTLD_LOCAL);
+	if (!lib_handle)
+		return ret;
+
+	initialize = dlsym(lib_handle, "cmap_initialize");
+	if (!initialize)
+		goto out;
+
+	get_string = dlsym(lib_handle, "cmap_get_string");
+	if (!get_string)
+		goto out;
+
+	finalize = dlsym(lib_handle, "cmap_finalize");
+	if (!finalize)
+		goto out;
+
+	rv = initialize(&handle);
+	if (rv != CS_OK)
+		goto out;
+
+	list = (char **)malloc(sizeof(char *) * 2);
+	if (!list)
+		goto out;
+
+	rv = get_string(handle, "totem.cluster_name", &list[0]);
+	if (rv != CS_OK) {
+		free(list);
+		ret = O2CB_ET_INTERNAL_FAILURE;
 		goto out;
 	}
-	fd = rc;
 
-	rc = send_message(fd, CM_LISTCLUSTERS);
-	if (rc) {
-		/* fprintf(stderr,
-			"Unable to send LISTCLUSTERS message: %s\n",
-			strerror(-rc)); */
-		err = O2CB_ET_IO;
-		goto out;
-	}
-
-	rc = receive_list(fd, buf, clusters);
-	if (rc) {
-		/* fprintf(stderr, "Error reading from daemon: %s\n",
-			strerror(-rc)); */
-		err = O2CB_ET_IO;
-		goto out;
-	}
-
-	err = 0;
-
+	list[1] = NULL;
+	*clusters = list;
+	finalize(handle);
+	ret = 0;
 out:
-	if (fd != -1)
-		close(fd);
-
-	return err;
+	dlclose(lib_handle);
+	return ret;
 }
 
 errcode_t o2cb_list_clusters(char ***clusters)
