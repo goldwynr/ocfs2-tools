@@ -33,7 +33,7 @@ int is_classic_stack(char *stack_name)
 }
 
 /* For ocfs2_fill_cluster_information().  Errors are to be ignored */
-void cluster_fill(char **stack_name, char **cluster_name, uint8_t *stack_flags)
+errcode_t cluster_fill(char **stack_name, char **cluster_name, uint8_t *stack_flags)
 {
 	errcode_t err;
 	struct o2cb_cluster_desc cluster;
@@ -44,11 +44,11 @@ void cluster_fill(char **stack_name, char **cluster_name, uint8_t *stack_flags)
 
 	err = o2cb_init();
 	if (err)
-		return;
+		goto out;
 
 	err = o2cb_running_cluster_desc(&cluster);
 	if (err)
-		return;
+		goto out;
 
 	if (cluster.c_stack) {
 		/*
@@ -59,6 +59,8 @@ void cluster_fill(char **stack_name, char **cluster_name, uint8_t *stack_flags)
 		*cluster_name = cluster.c_cluster;
 		*stack_flags = cluster.c_flags;
 	}
+out:
+	return err;
 }
 
 /* For ocfs2_fill_cluster_information().  Errors are to be ignored */
@@ -132,6 +134,7 @@ int ocfs2_fill_cluster_information(State *s)
 	uint8_t user_stack_flags, o2cb_stack_flags, disk_stack_flags;
 	int clusterinfo = 0, userspace = 0;
 	int ret = -1;
+	errcode_t err;
 
 	if (s->mount == MOUNT_LOCAL)
 		return 0;
@@ -139,7 +142,15 @@ int ocfs2_fill_cluster_information(State *s)
 	*user_value = *o2cb_value = *disk_value = '\0';
 
 	/* get currently active cluster stack */
-	cluster_fill(&o2cb_stack_name, &o2cb_cluster_name, &o2cb_stack_flags);
+	err = cluster_fill(&o2cb_stack_name, &o2cb_cluster_name, &o2cb_stack_flags);
+	if (err && !s->cluster_stack) {
+		com_err(s->progname, 0, "Could not determine cluster "
+			"information.\nEither load the correct kernel module"
+			", set the cluster_stack and start cluster "
+			"services, or provide --cluster-stack and "
+			"--cluster-name command line arguments.\n");
+		return -1;
+	}
 
 	/* get cluster stack configured on disk */
 	disk_fill(s->device_name, &disk_stack_name, &disk_cluster_name,

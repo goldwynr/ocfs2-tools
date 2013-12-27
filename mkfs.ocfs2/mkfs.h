@@ -243,6 +243,6 @@ struct _State {
 };
 
 int is_classic_stack(char *stack_name);
-void cluster_fill(char **stack_name, char **cluster_name, uint8_t *stack_flags);
+errcode_t cluster_fill(char **stack_name, char **cluster_name, uint8_t *stack_flags);
 int ocfs2_fill_cluster_information(State *s);
 int ocfs2_check_volume(State *s);
