@@ -1373,164 +1373,22 @@ static errcode_t user_parse_status(char **args, int *error, char **error_msg)
 }
 
 static errcode_t user_begin_group_join(struct o2cb_cluster_desc *cluster,
-				       struct o2cb_region_desc *region)
+		struct o2cb_region_desc *region)
 {
-	errcode_t err;
-	int rc;
-	int error;
-	char *error_msg;
-	client_message message;
-	char *argv[OCFS2_CONTROLD_MAXARGS + 1];
-	char buf[OCFS2_CONTROLD_MAXLINE];
+	errcode_t ret = 0;
 
-	if (control_daemon_fd != -1) {
-		/* fprintf(stderr, "Join already in progress!\n"); */
-		err = O2CB_ET_INTERNAL_FAILURE;
-		goto out;
-	}
+	ret = o2cb_validate_cluster_name(cluster);
+	if (ret)
+		return ret;
 
-	rc = ocfs2_client_connect();
-	if (rc < 0) {
-		/* fprintf(stderr, "Unable to connect to ocfs2_controld: %s\n",
-			strerror(-rc)); */
-		switch (rc) {
-			case -EACCES:
-			case -EPERM:
-				err = O2CB_ET_PERMISSION_DENIED;
-				break;
-
-			default:
-				err = O2CB_ET_SERVICE_UNAVAILABLE;
-				break;
-		}
-		goto out;
-	}
-	control_daemon_fd = rc;
-
-	rc = send_message(control_daemon_fd, CM_MOUNT, OCFS2_FS_NAME,
-			  region->r_name, cluster->c_cluster,
-			  region->r_device_name, region->r_service);
-	if (rc) {
-		/* fprintf(stderr, "Unable to send MOUNT message: %s\n",
-			strerror(-rc)); */
-		err = O2CB_ET_IO;
-		goto out;
-	}
-
-	rc = receive_message(control_daemon_fd, buf, &message, argv);
-	if (rc < 0) {
-		/* fprintf(stderr, "Error reading from daemon: %s\n",
-			strerror(-rc)); */
-		err = O2CB_ET_IO;
-		goto out;
-	}
-
-	switch (message) {
-		case CM_STATUS:
-			err = user_parse_status(argv, &error, &error_msg);
-			if (err) {
-				/* fprintf(stderr, "Bad status message: %s\n",
-					strerror(-rc)); */
-				goto out;
-			}
-			if (error && (error != EALREADY)) {
-				/* fprintf(stderr,
-					"Error %d from daemon: %s\n",
-					error, error_msg); */
-				err = O2CB_ET_CONFIGURATION_ERROR;
-				goto out;
-			}
-			break;
-
-		default:
-			/* fprintf(stderr,
-				"Unexpected message %s from daemon\n",
-				message_to_string(message)); */
-			err = O2CB_ET_INTERNAL_FAILURE;
-			goto out;
-			break;
-	}
-
-	err = 0;
-
-out:
-	if (err && (control_daemon_fd != -1)) {
-		close(control_daemon_fd);
-		control_daemon_fd = -1;
-	}
-
-	return err;
+	return ret;
 }
 
 static errcode_t user_complete_group_join(struct o2cb_cluster_desc *cluster,
 					  struct o2cb_region_desc *region,
 					  int result)
 {
-	errcode_t err = O2CB_ET_SERVICE_UNAVAILABLE;
-	int rc;
-	int error;
-	char *error_msg;
-	client_message message;
-	char *argv[OCFS2_CONTROLD_MAXARGS + 1];
-	char buf[OCFS2_CONTROLD_MAXLINE];
-
-	if (control_daemon_fd == -1) {
-		/* fprintf(stderr, "Join not started!\n"); */
-		err = O2CB_ET_SERVICE_UNAVAILABLE;
-		goto out;
-	}
-
-	rc = send_message(control_daemon_fd, CM_MRESULT, OCFS2_FS_NAME,
-			  region->r_name, result, region->r_service);
-	if (rc) {
-		/* fprintf(stderr, "Unable to send MRESULT message: %s\n",
-			strerror(-rc)); */
-		err = O2CB_ET_IO;
-		goto out;
-	}
-
-	rc = receive_message(control_daemon_fd, buf, &message, argv);
-	if (rc < 0) {
-		/* fprintf(stderr, "Error reading from daemon: %s\n",
-			strerror(-rc)); */
-		err = O2CB_ET_IO;
-		goto out;
-	}
-
-	switch (message) {
-		case CM_STATUS:
-			err = user_parse_status(argv, &error, &error_msg);
-			if (err) {
-				/* fprintf(stderr, "Bad status message: %s\n",
-					strerror(-rc)); */
-				goto out;
-			}
-			if (error) {
-				/* fprintf(stderr,
-					"Error %d from daemon: %s\n",
-					error, error_msg); */
-				err = O2CB_ET_CONFIGURATION_ERROR;
-			}
-			break;
-
-		default:
-			/* fprintf(stderr,
-				"Unexpected message %s from daemon\n",
-				message_to_string(message)); */
-			err = O2CB_ET_INTERNAL_FAILURE;
-			goto out;
-			break;
-	}
-
-	err = 0;
-
-out:
-	if (control_daemon_fd != -1) {
-		close(control_daemon_fd);
-		control_daemon_fd = -1;
-	}
-
-	return err;
+	return 0;
 }
 
 static errcode_t user_group_leave(struct o2cb_cluster_desc *cluster,
