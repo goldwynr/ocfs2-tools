@@ -80,7 +80,8 @@ bundled with Linux kernels 2.6.20 or later. Defaults to \fIcluster\fR.
 \fB\-N, \-\-node\-slots\fR \fInumber\-of\-node\-slots\fR
 Valid number ranges from 1 to 255. This number specifies the maximum
 number of nodes that can concurrently mount the partition. If omitted,
-the number defaults to 8. The number of slots can be later tuned up or
+the number of slots is decided based on the size of the filesystem.
+The number of slots can be later tuned up or
 down using \fItunefs.ocfs2\fR.
 
 .TP
